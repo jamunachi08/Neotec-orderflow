@@ -1,0 +1,494 @@
+{#- Neotec OrderFlow — Delivery Note / Tax Invoice print format (shared source).
+    Managed by code (setup/install.py), which prepends `{% set nof_kind = "dn"|"si" %}`.
+    All logic lives in neotec_orderflow.api.print_helpers.nof_print_context;
+    every block below is toggled from "Neotec Print Settings". Landscape A4. -#}
+{%- set c = nof_print_context(doc, nof_kind, nof_variant if nof_variant is defined else "modern") -%}
+{%- set A = c.colors.accent -%}{%- set S = c.colors.secondary -%}{%- set H = c.colors.highlight -%}
+{%- set F = c.flags -%}{%- set show_amt = (c.kind == "si") or F.dn_amounts -%}
+{%- set tax_cols = c.tax.cols if (c.tax.show and show_amt) else [] -%}
+{%- set rates_only = c.tax.rates_only -%}
+{%- set tax_labels = {"cgst": "CGST", "sgst": "SGST", "igst": "IGST"} -%}
+{%- set date_field = doc.posting_date if doc.get("posting_date") else doc.transaction_date -%}
+{%- set fs = c.font_size -%}
+
+<style>
+  .print-format { page-size: A4; orientation: landscape; margin: 5mm; }
+  @page { size: A4 landscape; margin: 5mm; }
+  .nd { font-family: {{ c.font }}, Helvetica, sans-serif; font-size: {{ fs }}px; color: #1a1a1a; line-height: 1.28; }
+  .nd table { border-collapse: collapse; width: 100%; }
+  .nd td, .nd th { vertical-align: top; }
+  .nd .rt { text-align: right; } .nd .ct { text-align: center; } .nd .b { font-weight: bold; }
+  .nd .mut { color: #5c6770; } .nd .sm { font-size: {{ fs - 1.5 }}px; } .nd .xs { font-size: {{ fs - 2.5 }}px; }
+  .nd .cap { font-size: {{ fs - 2.5 }}px; letter-spacing: .6px; text-transform: uppercase; color: {{ A }}; font-weight: bold; }
+
+  /* ---------- header band ---------- */
+  .nd .hdr { border: 1.5px solid {{ A }}; border-bottom: none; }
+  .nd .hdr td { padding: 6px 8px; }
+  .nd .logo-cell img { max-height: 58px; max-width: 170px; }
+  .nd .brand-cell img { max-height: 52px; max-width: 150px; }
+  .nd .co-name { font-size: {{ fs + 5 }}px; font-weight: bold; color: {{ A }}; letter-spacing: .2px; }
+  .nd .title-cell { background: {{ A }}; color: #fff; text-align: right; }
+  .nd .title { font-size: {{ fs + 11 }}px; font-weight: bold; letter-spacing: 1.2px; line-height: 1.1; }
+  .nd .subtitle { font-size: {{ fs - 2 }}px; opacity: .9; margin-top: 2px; }
+  .nd .badge { display: inline-block; border: 1px solid rgba(255,255,255,.65); padding: 1px 7px; border-radius: 9px; font-size: {{ fs - 3 }}px; margin-top: 4px; }
+
+  /* ---------- meta / cards ---------- */
+  .nd .meta { border: 1.5px solid {{ A }}; border-top: none; border-bottom: none; }
+  .nd .meta th { background: {{ S }}; color: {{ A }}; font-size: {{ fs - 2 }}px; text-transform: uppercase; letter-spacing: .5px; padding: 3px 6px; border: 1px solid #d3dbe3; }
+  .nd .meta td { padding: 4px 6px; border: 1px solid #d3dbe3; font-weight: bold; text-align: center; }
+  .nd .cards { border: 1.5px solid {{ A }}; border-top: none; border-bottom: none; }
+  .nd .cards > tbody > tr > td { padding: 0; border-right: 1px solid #d3dbe3; }
+  .nd .cards > tbody > tr > td:last-child { border-right: none; }
+  .nd .card { padding: 6px 8px; }
+  .nd .card-h { background: {{ S }}; color: {{ A }}; font-weight: bold; font-size: {{ fs - 1.5 }}px; letter-spacing: .5px; text-transform: uppercase; padding: 3px 8px; border-bottom: 1px solid #d3dbe3; }
+  .nd .kv td { padding: 1px 0; border: none; }
+  .nd .kv td:first-child { color: #5c6770; width: 44%; white-space: nowrap; padding-right: 6px; }
+  .nd .pkg th, .nd .pkg td { border: 1px solid #d3dbe3; padding: 2px 4px; font-size: {{ fs - 2 }}px; }
+  .nd .pkg th { background: {{ S }}; color: {{ A }}; }
+  .nd .pkg td.v { text-align: right; min-width: 32px; }
+
+  /* ---------- items ---------- */
+  .nd .items { border: 1.5px solid {{ A }}; }
+  .nd .items th { background: {{ A }}; color: #fff; font-weight: bold; font-size: {{ fs - 1.5 }}px; padding: 4px 5px; border: 1px solid {{ A }}; text-align: center; vertical-align: middle; }
+  .nd .items th.sub { background: {{ A }}; font-weight: normal; font-size: {{ fs - 2.5 }}px; opacity: .95; }
+  .nd .items td { padding: 4px 5px; border-left: 1px solid #d3dbe3; border-right: 1px solid #d3dbe3; border-bottom: 1px solid #eef2f5; }
+  .nd .items tr.z td { background: {{ S }}; }
+  .nd .items tr.pad td { height: 14px; border-bottom: none; }
+  .nd .items .tax-grp { border-left: 2px solid #fff; }
+  .nd .items td.tax-grp { border-left: 2px solid #c9d3dc; }
+  .nd .items tfoot td { background: {{ S }}; border-top: 1.5px solid {{ A }}; font-weight: bold; padding: 4px 5px; }
+  .nd .items tfoot tr.band td { background: #fff; font-weight: normal; border-top: none; border-bottom: 1px solid #eef2f5; padding: 2px 5px; }
+  .nd .items tfoot tr.band-h td { background: #fff; font-weight: bold; border-top: 1.5px solid {{ A }}; border-bottom: 1px solid #c9d3dc; padding: 4px 5px; }
+  .nd .items tfoot tr.band-hl td.lbl { background: {{ H }}; }
+  .nd .items tfoot tr.band-gt td { background: {{ S }}; font-weight: bold; border-top: 1.5px solid {{ A }}; }
+  .nd .items .itm-code { font-weight: bold; }
+  .nd .items .itm-desc { color: #5c6770; font-size: {{ fs - 2 }}px; }
+  .nd .items img { max-width: 40px; max-height: 40px; }
+
+  /* ---------- totals & footer ---------- */
+  .nd .tot-wrap { border: 1.5px solid {{ A }}; border-top: none; }
+  .nd .tot-wrap > tbody > tr > td { padding: 6px 8px; border-right: 1px solid #d3dbe3; }
+  .nd .tot-wrap > tbody > tr > td:last-child { border-right: none; }
+  .nd .totals td { padding: 2px 6px; border-bottom: 1px solid #eef2f5; }
+  .nd .totals tr.gt td { background: {{ H }}; font-weight: bold; font-size: {{ fs + 1.5 }}px; border-top: 1.5px solid {{ A }}; border-bottom: 1.5px solid {{ A }}; }
+  .nd .totals tr.bal td { background: {{ H }}; font-weight: bold; }
+  .nd .words { border: 1px dashed {{ A }}; background: #fff; padding: 4px 6px; margin-bottom: 5px; }
+  .nd .note { font-size: {{ fs - 2.5 }}px; color: #3d4852; }
+  .nd .terms ol { margin: 2px 0 0 14px; padding: 0; }
+  .nd .terms li { margin: 0 0 1px 0; }
+  .nd .hsn { border: 1.5px solid {{ A }}; border-top: none; }
+  .nd .hsn th { background: {{ S }}; color: {{ A }}; font-size: {{ fs - 2 }}px; padding: 3px 5px; border: 1px solid #d3dbe3; text-align: center; }
+  .nd .hsn td { padding: 2px 5px; border: 1px solid #e3e8ed; text-align: right; font-size: {{ fs - 1.5 }}px; }
+  .nd .hsn td:first-child { text-align: left; }
+  .nd .hsn tr.t td { font-weight: bold; background: {{ S }}; }
+  .nd .sig { border: 1.5px solid {{ A }}; border-top: none; }
+  .nd .sig td { padding: 6px 8px; height: 48px; border-right: 1px solid #d3dbe3; }
+  .nd .sig td:last-child { border-right: none; }
+  .nd .sig .who { font-weight: bold; color: {{ A }}; }
+  .nd .sig .line { border-top: 1px solid #8a96a3; margin-top: 30px; padding-top: 2px; font-size: {{ fs - 2.5 }}px; color: #5c6770; }
+  .nd .foot { background: {{ A }}; color: #fff; text-align: center; font-size: {{ fs - 2 }}px; padding: 3px 6px; letter-spacing: .3px; }
+  .nd .strip { background: {{ S }}; border-left: 1.5px solid {{ A }}; border-right: 1.5px solid {{ A }}; padding: 3px 8px; font-size: {{ fs - 2.5 }}px; color: #3d4852; }
+  .nd .qr img { max-width: 88px; max-height: 88px; }
+  .nd .einv img { max-width: 92px; max-height: 92px; }
+</style>
+
+<div class="nd">
+
+{#- ================= HEADER BAND ================= -#}
+<table class="hdr">
+  <tr>
+    {%- if c.company_logo or c.brand_logo -%}
+    <td class="logo-cell" style="width:{% if c.brand_logo and c.brand_logo_position == 'Right of Company Logo' %}26%{% else %}15%{% endif %};white-space:nowrap;">
+      {%- if c.company_logo -%}<img src="{{ c.company_logo }}" alt="">{%- endif -%}
+      {%- if c.brand_logo and c.brand_logo_position == "Right of Company Logo" -%}
+        <span class="brand-cell" style="display:inline-block;margin-left:14px;vertical-align:middle;"><img src="{{ c.brand_logo }}" alt="{{ c.brand }}"></span>
+      {%- endif -%}
+    </td>
+    {%- endif -%}
+    <td style="width:auto;">
+      <div class="co-name">{{ c.company.name }}</div>
+      {%- if c.company_address -%}
+      <div class="sm">
+        {{ c.company_address.address_line1 or "" }}{% if c.company_address.address_line2 %}, {{ c.company_address.address_line2 }}{% endif %}<br>
+        {{ c.company_address.city or "" }}{% if c.company_address.state %}, {{ c.company_address.state }}{% endif %}{% if c.company_address.pincode %} – {{ c.company_address.pincode }}{% endif %}{% if c.company_address.country %}, {{ c.company_address.country }}{% endif %}
+      </div>
+      {%- endif -%}
+      {%- if c.company.gstin -%}<div class="sm"><span class="mut">GSTIN :</span> <b>{{ c.company.gstin }}</b></div>{%- endif -%}
+      {%- if c.company.phone or c.company.email -%}
+      <div class="xs mut">{% if c.company.phone %}Ph : {{ c.company.phone }}{% endif %}{% if c.company.phone and c.company.email %} &nbsp;|&nbsp; {% endif %}{% if c.company.email %}{{ c.company.email }}{% endif %}</div>
+      {%- endif -%}
+    </td>
+    {%- if c.brand_logo and c.brand_logo_position == "Top Right" -%}
+    <td class="brand-cell ct" style="width:14%;"><img src="{{ c.brand_logo }}" alt="{{ c.brand }}"></td>
+    {%- endif -%}
+    <td class="title-cell" style="width:{% if c.package and (c.package.any or c.package.blank) %}24%{% else %}30%{% endif %};">
+      <div class="title">{{ c.title }}</div>
+      {%- if c.subtitle -%}<div class="subtitle">{{ c.subtitle }}</div>{%- endif -%}
+      {%- if c.kind == "si" and c.tax.show -%}
+        <span class="badge">{{ "Inter-State Supply (IGST)" if c.inter_state else "Intra-State Supply (CGST + SGST)" }}</span>
+      {%- endif -%}
+      {%- if doc.get("is_return") -%}<span class="badge">Against {{ doc.return_against }}</span>{%- endif -%}
+    </td>
+    {%- if c.package and (c.package.any or c.package.blank) -%}
+    <td style="width:16%;padding:4px;">
+      <table class="pkg">
+        <tr><th style="text-align:left;">Package</th><th>Count</th>{% if c.package.has_weight or c.package.blank %}<th>Wt (Kg)</th>{% endif %}</tr>
+        {%- for r in c.package.rows -%}
+        <tr><td>{{ r.label }}</td><td class="v">{{ c.fmt_qty(r.count) if r.count is not none else "" }}</td>{% if c.package.has_weight or c.package.blank %}<td class="v">{{ c.fmt_qty(r.weight) if r.weight is not none else "" }}</td>{% endif %}</tr>
+        {%- endfor -%}
+        <tr><td class="b">Total</td><td class="v b">{{ c.fmt_qty(c.package.total_count) if c.package.any else "" }}</td>{% if c.package.has_weight or c.package.blank %}<td class="v b">{{ c.fmt_qty(c.package.total_weight) if c.package.has_weight else "" }}</td>{% endif %}</tr>
+      </table>
+    </td>
+    {%- endif -%}
+  </tr>
+</table>
+
+{#- ================= DOCUMENT META STRIP ================= -#}
+<table class="meta">
+  <tr>
+    <th>{{ "Challan No" if c.kind == "dn" else "Invoice No" }}</th>
+    <th>Date</th>
+    {%- if c.kind == "si" -%}<th>Due Date</th>{%- endif -%}
+    <th>Order No</th>
+    <th>Order Date</th>
+    {%- if c.kind == "si" and c.dn_refs -%}<th>Delivery Note</th>{%- endif -%}
+    <th>Area / Territory</th>
+    <th>Customer Ref</th>
+    {%- if c.place_of_supply -%}<th>Place of Supply</th>{%- endif -%}
+  </tr>
+  <tr>
+    <td>{{ doc.name }}</td>
+    <td>{{ frappe.utils.formatdate(date_field, "dd-MMM-yyyy") }}</td>
+    {%- if c.kind == "si" -%}<td>{{ frappe.utils.formatdate(doc.due_date, "dd-MMM-yyyy") if doc.get("due_date") else "–" }}</td>{%- endif -%}
+    <td>{{ c.so_refs | join(", ") if c.so_refs else (doc.get("po_no") or "–") }}</td>
+    <td>{{ frappe.utils.formatdate(doc.po_date, "dd-MMM-yyyy") if doc.get("po_date") else "–" }}</td>
+    {%- if c.kind == "si" and c.dn_refs -%}
+    <td>{{ c.dn_refs | join(", ") }}</td>
+    {%- endif -%}
+    <td>{{ doc.get("territory") or "–" }}</td>
+    <td>{{ doc.get("po_no") or "–" }}</td>
+    {%- if c.place_of_supply -%}<td>{{ c.place_of_supply }}</td>{%- endif -%}
+  </tr>
+</table>
+
+{#- ================= PARTY CARDS ================= -#}
+<table class="cards">
+  <tr>
+    <td style="width:26%;">
+      <div class="card-h">Bill To</div>
+      <div class="card">
+        <div class="b" style="font-size:{{ fs + 1 }}px;">{{ doc.customer_name }}</div>
+        <div class="xs mut">Customer Code : {{ doc.customer }}</div>
+        <div class="sm" style="margin-top:3px;">{{ (doc.address_display or "") | safe }}</div>
+        {%- if c.customer_gstin -%}<div class="sm"><span class="mut">GSTIN :</span> <b>{{ c.customer_gstin }}</b></div>{%- endif -%}
+        {%- if c.gst_category -%}<div class="xs mut">{{ c.gst_category }}</div>{%- endif -%}
+      </div>
+    </td>
+    <td style="width:26%;">
+      <div class="card-h">Ship To</div>
+      <div class="card">
+        {%- set ship = doc.shipping_address or doc.shipping_address_display or doc.address_display -%}
+        <div class="b" style="font-size:{{ fs + 1 }}px;">{{ doc.customer_name }}</div>
+        <div class="sm" style="margin-top:3px;">{{ (ship or "") | safe }}</div>
+        {%- if doc.get("dispatch_address") -%}<div class="xs mut" style="margin-top:3px;">Dispatch from:<br>{{ doc.dispatch_address | safe }}</div>{%- endif -%}
+      </div>
+    </td>
+    <td style="width:{% if c.qr or (c.einvoice and (c.einvoice.irn or c.einvoice.ewaybill)) %}30%{% else %}48%{% endif %};">
+      <div class="card-h">Details</div>
+      <div class="card">
+        <table class="kv">
+          {%- if F.transport -%}
+          {%- if doc.get("payment_terms_template") -%}<tr><td>Payment Terms</td><td>{{ doc.payment_terms_template }}</td></tr>{%- endif -%}
+          {%- if c.kind == "si" and doc.get("due_date") -%}<tr><td>Payment Due</td><td>{{ frappe.utils.formatdate(doc.due_date, "dd-MMM-yyyy") }}</td></tr>{%- endif -%}
+          {%- if doc.get("transporter_name") or doc.get("transporter") -%}<tr><td>Transporter</td><td>{{ doc.get("transporter_name") or doc.get("transporter") }}</td></tr>{%- endif -%}
+          {%- if doc.get("lr_no") -%}<tr><td>LR / RR No</td><td>{{ doc.lr_no }}{% if doc.get("lr_date") %} ({{ frappe.utils.formatdate(doc.lr_date, "dd-MMM-yyyy") }}){% endif %}</td></tr>{%- endif -%}
+          {%- if doc.get("vehicle_no") -%}<tr><td>Vehicle No</td><td>{{ doc.vehicle_no }}</td></tr>{%- endif -%}
+          {%- if doc.get("mode_of_transport") -%}<tr><td>Transport Mode</td><td>{{ doc.mode_of_transport }}</td></tr>{%- endif -%}
+          {%- if doc.get("gst_vehicle_type") -%}<tr><td>Vehicle Type</td><td>{{ doc.gst_vehicle_type }}</td></tr>{%- endif -%}
+          {%- endif -%}
+          {%- if F.contact and (c.contact.name or c.contact.mobile) -%}
+          <tr><td>Contact</td><td>{{ c.contact.name or "" }}{% if c.contact.mobile %} · {{ c.contact.mobile }}{% endif %}</td></tr>
+          {%- if c.contact.email -%}<tr><td>Email</td><td>{{ c.contact.email }}</td></tr>{%- endif -%}
+          {%- endif -%}
+          {%- if F.sales_person and c.sales_person -%}<tr><td>Sales Person</td><td>{{ c.sales_person }}</td></tr>{%- endif -%}
+          {%- if c.einvoice and c.einvoice.irn -%}<tr><td>IRN</td><td class="xs" style="word-break:break-all;">{{ c.einvoice.irn }}</td></tr>{%- endif -%}
+          {%- if c.einvoice and c.einvoice.ack_no -%}<tr><td>Ack No / Date</td><td>{{ c.einvoice.ack_no }}{% if c.einvoice.ack_date %} · {{ c.einvoice.ack_date }}{% endif %}</td></tr>{%- endif -%}
+          {%- if c.einvoice and c.einvoice.ewaybill -%}<tr><td>e-Way Bill</td><td>{{ c.einvoice.ewaybill }}</td></tr>{%- endif -%}
+          {%- if doc.get("is_reverse_charge") is not none -%}<tr><td>Reverse Charge</td><td>{{ "Yes" if doc.get("is_reverse_charge") else "No" }}</td></tr>{%- endif -%}
+        </table>
+      </div>
+    </td>
+    {%- if c.qr or (c.einvoice and c.einvoice.qr_svg) -%}
+    <td style="width:18%;" class="ct">
+      <div class="card-h">{{ "e-Invoice QR" if (c.einvoice and c.einvoice.qr_svg) else c.qr_caption }}</div>
+      <div class="card ct">
+        {%- if c.einvoice and c.einvoice.qr_svg -%}
+          <div class="einv">{{ c.einvoice.qr_svg | safe }}</div>
+        {%- endif -%}
+        {%- if c.qr -%}<div class="qr"><img src="{{ c.qr }}" alt="QR"><div class="xs mut">{{ c.qr_caption }}</div></div>{%- endif -%}
+      </div>
+    </td>
+    {%- endif -%}
+  </tr>
+</table>
+
+{#- ================= ITEMS ================= -#}
+{%- set two_row = tax_cols | length > 0 and not rates_only -%}
+<table class="items">
+  <thead>
+    <tr>
+      <th style="width:3%;"  {% if two_row %}rowspan="2"{% endif %}>#</th>
+      {%- if F.image -%}<th style="width:5%;" {% if two_row %}rowspan="2"{% endif %}>Image</th>{%- endif -%}
+      <th {% if two_row %}rowspan="2"{% endif %} style="text-align:left;">Item Code / Description</th>
+      {%- if F.hsn -%}<th style="width:6%;" {% if two_row %}rowspan="2"{% endif %}>HSN / SAC</th>{%- endif -%}
+      <th style="width:6%;" {% if two_row %}rowspan="2"{% endif %}>Qty</th>
+      {%- if F.uom -%}<th style="width:4%;" {% if two_row %}rowspan="2"{% endif %}>UOM</th>{%- endif -%}
+      {%- if show_amt -%}
+        {%- if F.unit_price -%}<th style="width:7%;" {% if two_row %}rowspan="2"{% endif %}>Unit Price</th>{%- endif -%}
+        {%- if F.disc -%}
+          <th style="width:7%;" {% if two_row %}rowspan="2"{% endif %}>Gross</th>
+          <th style="width:4.5%;" {% if two_row %}rowspan="2"{% endif %}>Disc %</th>
+          <th style="width:6%;" {% if two_row %}rowspan="2"{% endif %}>Disc Amt</th>
+        {%- endif -%}
+        <th style="width:8%;" {% if two_row %}rowspan="2"{% endif %}>Assessable Value</th>
+        {%- for t in tax_cols -%}
+          {%- if rates_only -%}
+            <th style="width:5%;" class="tax-grp">{{ tax_labels[t] }} %</th>
+          {%- else -%}
+            <th colspan="2" class="tax-grp">{{ tax_labels[t] }}</th>
+          {%- endif -%}
+        {%- endfor -%}
+        {%- if F.line_total -%}<th style="width:8%;" {% if two_row %}rowspan="2"{% endif %}>Line Total</th>{%- endif -%}
+      {%- endif -%}
+    </tr>
+    {%- if two_row -%}
+    <tr>
+      {%- for t in tax_cols -%}<th class="sub tax-grp" style="width:4%;">Rate %</th><th class="sub" style="width:6%;">Amount</th>{%- endfor -%}
+    </tr>
+    {%- endif -%}
+  </thead>
+  <tbody>
+    {%- for r in c.rows -%}
+    <tr class="{{ 'z' if loop.index is even else '' }}">
+      <td class="ct">{{ loop.index }}</td>
+      {%- if F.image -%}<td class="ct">{% if r.image %}<img src="{{ r.image }}" alt="">{% endif %}</td>{%- endif -%}
+      <td>
+        <span class="itm-code">{{ r.item_code }}</span>{% if r.item_name and r.item_name != r.item_code %} <span class="mut">·</span> {{ r.item_name }}{% endif %}
+        {%- if F.desc and r.description and (r.description | striptags | trim) not in (r.item_name or "", r.item_code) -%}
+          <div class="itm-desc">{{ r.description | striptags | truncate(120) }}</div>
+        {%- endif -%}
+        {%- if r.batch or r.serial -%}<div class="xs mut">{% if r.batch %}Batch: {{ r.batch }}{% endif %}{% if r.serial %} Serial: {{ r.serial | replace("\n", ", ") }}{% endif %}</div>{%- endif -%}
+      </td>
+      {%- if F.hsn -%}<td class="ct">{{ r.hsn or "–" }}</td>{%- endif -%}
+      <td class="rt b">{{ c.fmt_qty(r.qty) }}</td>
+      {%- if F.uom -%}<td class="ct">{{ r.uom or "" }}</td>{%- endif -%}
+      {%- if show_amt -%}
+        {%- if F.unit_price -%}<td class="rt">{{ c.fmt(r.unit_price) }}</td>{%- endif -%}
+        {%- if F.disc -%}
+          <td class="rt">{{ c.fmt(r.gross) }}</td>
+          <td class="rt">{{ c.fmt_qty(r.disc_pct) }}</td>
+          <td class="rt">{{ c.fmt(r.disc_amt) }}</td>
+        {%- endif -%}
+        <td class="rt">{{ c.fmt(r.taxable) }}</td>
+        {%- for t in tax_cols -%}
+          {%- set rt_ = r[t ~ "_rate"] -%}{%- set am_ = r[t ~ "_amount"] -%}
+          <td class="rt tax-grp">{{ c.fmt_qty(rt_) }}</td>
+          {%- if not rates_only -%}<td class="rt">{{ c.fmt(am_) }}</td>{%- endif -%}
+        {%- endfor -%}
+        {%- if F.line_total -%}<td class="rt b">{{ c.fmt(r.line_total) }}</td>{%- endif -%}
+      {%- endif -%}
+    </tr>
+    {%- endfor -%}
+    {%- for i in range(c.min_rows - (c.rows | length)) if c.min_rows > (c.rows | length) -%}
+    {%- set ncols = 1 + (1 if F.image else 0) + 1 + (1 if F.hsn else 0) + 1 + (1 if F.uom else 0)
+        + ((1 if F.unit_price else 0) + (3 if F.disc else 0) + 1 + (tax_cols | length) * (1 if rates_only else 2) + (1 if F.line_total else 0) if show_amt else 0) -%}
+    <tr class="pad"><td colspan="{{ ncols }}"></td></tr>
+    {%- endfor -%}
+  </tbody>
+  {%- set lead_cols = 1 + (1 if F.image else 0) -%}
+  {%- set pre_assess = (1 if F.unit_price else 0) + (3 if F.disc else 0) -%}
+  <tfoot>
+    {%- if c.band and show_amt -%}
+    {%- set B = c.band -%}
+    {%- if B.show_before -%}
+    <tr class="band-h">
+      <td colspan="{{ lead_cols }}"></td>
+      <td>Total Before Freight</td>
+      {%- if F.hsn -%}<td></td>{%- endif -%}
+      <td></td>{%- if F.uom -%}<td></td>{%- endif -%}
+      {%- for i in range(pre_assess) -%}<td></td>{%- endfor -%}
+      <td class="rt">{{ c.fmt(B.before.taxable) }}</td>
+      {%- for t in tax_cols -%}<td class="tax-grp"></td>{%- if not rates_only -%}<td class="rt">{{ c.fmt(B.before[t]) }}</td>{%- endif -%}{%- endfor -%}
+      {%- if F.line_total -%}<td class="rt">{{ c.fmt(B.before.total) }}</td>{%- endif -%}
+    </tr>
+    {%- endif -%}
+    {%- for r in B.rows -%}
+    <tr class="band{% if r.amount %} band-hl{% endif %}">
+      <td colspan="{{ lead_cols }}"></td>
+      <td class="lbl">{{ r.label }} [{{ c.currency }}]</td>
+      {%- if F.hsn -%}<td class="ct">{{ r.sac or "" }}</td>{%- endif -%}
+      <td></td>{%- if F.uom -%}<td></td>{%- endif -%}
+      {%- for i in range(pre_assess) -%}<td></td>{%- endfor -%}
+      <td class="rt">{{ c.fmt(r.amount) }}</td>
+      {%- for t in tax_cols -%}
+        <td class="rt tax-grp">{{ c.fmt_qty(r[t ~ "_rate"]) }}</td>
+        {%- if not rates_only -%}<td class="rt">{{ c.fmt(r[t ~ "_amount"]) }}</td>{%- endif -%}
+      {%- endfor -%}
+      {%- if F.line_total -%}<td class="rt">{{ c.fmt(r.total) }}</td>{%- endif -%}
+    </tr>
+    {%- endfor -%}
+    {%- if F.round_off -%}
+    <tr class="band">
+      <td colspan="{{ lead_cols }}"></td>
+      <td>Round Off</td>
+      {%- if F.hsn -%}<td></td>{%- endif -%}
+      <td></td>{%- if F.uom -%}<td></td>{%- endif -%}
+      {%- for i in range(pre_assess) -%}<td></td>{%- endfor -%}
+      <td></td>
+      {%- for t in tax_cols -%}<td class="tax-grp"></td>{%- if not rates_only -%}<td></td>{%- endif -%}{%- endfor -%}
+      {%- if F.line_total -%}<td class="rt">{{ c.fmt(c.round_off) }}</td>{%- endif -%}
+    </tr>
+    {%- endif -%}
+    <tr class="band-gt">
+      <td colspan="{{ lead_cols }}"></td>
+      <td>{{ "Challan Total" if c.kind == "dn" else "Invoice Total" }} [{{ c.currency }}]</td>
+      {%- if F.hsn -%}<td></td>{%- endif -%}
+      <td class="rt">{{ c.fmt_qty(doc.total_qty) }}</td>{%- if F.uom -%}<td></td>{%- endif -%}
+      {%- for i in range(pre_assess) -%}<td></td>{%- endfor -%}
+      <td class="rt">{{ c.fmt(c.net_total + c.other_total) }}</td>
+      {%- for t in tax_cols -%}<td class="tax-grp"></td>{%- if not rates_only -%}<td class="rt">{{ c.fmt(c.tax_totals[t]) }}</td>{%- endif -%}{%- endfor -%}
+      {%- if F.line_total -%}<td class="rt">{{ c.fmt(c.rounded) }}</td>{%- endif -%}
+    </tr>
+    {%- else -%}
+    <tr>
+      <td colspan="{{ 1 + (1 if F.image else 0) + 1 + (1 if F.hsn else 0) }}" class="rt">Total</td>
+      <td class="rt">{{ c.fmt_qty(doc.total_qty) }}</td>
+      {%- if F.uom -%}<td></td>{%- endif -%}
+      {%- if show_amt -%}
+        {%- if F.unit_price -%}<td></td>{%- endif -%}
+        {%- if F.disc -%}<td class="rt">{{ c.fmt(c.rows | sum(attribute="gross")) }}</td><td></td><td class="rt">{{ c.fmt(c.rows | sum(attribute="disc_amt")) }}</td>{%- endif -%}
+        <td class="rt">{{ c.fmt(c.rows | sum(attribute="taxable")) }}</td>
+        {%- for t in tax_cols -%}
+          <td class="tax-grp"></td>{%- if not rates_only -%}<td class="rt">{{ c.fmt(c.rows | sum(attribute=t ~ "_amount")) }}</td>{%- endif -%}
+        {%- endfor -%}
+        {%- if F.line_total -%}<td class="rt">{{ c.fmt(c.rows | sum(attribute="line_total")) }}</td>{%- endif -%}
+      {%- endif -%}
+    </tr>
+    {%- endif -%}
+  </tfoot>
+</table>
+
+{%- if c.payment_note -%}<div class="strip"><b>Payment Terms :</b> {{ c.payment_note }}</div>{%- endif -%}
+
+{#- ================= TOTALS / WORDS / BANK ================= -#}
+<table class="tot-wrap">
+  <tr>
+    <td style="width:38%;">
+      {%- if F.words and show_amt -%}
+      <div class="words"><span class="cap">Amount in Words</span><br><b>{{ c.in_words }}</b></div>
+      {%- endif -%}
+      {%- if c.discount_note -%}<div class="note"><b>Note :</b> {{ c.discount_note }}</div>{%- endif -%}
+      {%- if doc.get("remarks") and doc.remarks != "No Remarks" -%}<div class="note" style="margin-top:3px;"><b>Remarks :</b> {{ doc.remarks }}</div>{%- endif -%}
+      {%- if c.bank_details and c.kind == "si" -%}
+      <div style="margin-top:5px;"><span class="cap">Bank Details</span><div class="sm">{{ c.bank_details | replace("\n", "<br>") | safe }}</div></div>
+      {%- endif -%}
+      {%- if c.package_inspection and c.kind == "dn" -%}
+      <div style="margin-top:5px;"><span class="cap">Package Inspection</span><div class="note">{{ c.package_inspection }}</div></div>
+      {%- endif -%}
+    </td>
+    <td style="width:34%;">
+      {%- if c.terms -%}
+      <span class="cap">Terms &amp; Conditions</span>
+      <div class="note terms">
+        {%- if c.terms_lines | length > 1 -%}<ol>{% for t in c.terms_lines %}<li>{{ t }}</li>{% endfor %}</ol>{%- else -%}{{ c.terms }}{%- endif -%}
+      </div>
+      {%- endif -%}
+      {%- if c.package_inspection and c.kind == "si" -%}
+      <div style="margin-top:5px;"><span class="cap">Package Inspection</span><div class="note">{{ c.package_inspection }}</div></div>
+      {%- endif -%}
+      {%- if c.bank_details and c.kind == "dn" -%}
+      <div style="margin-top:5px;"><span class="cap">Bank Details</span><div class="sm">{{ c.bank_details | replace("\n", "<br>") | safe }}</div></div>
+      {%- endif -%}
+    </td>
+    <td style="width:28%;padding:0 !important;">
+      {%- if show_amt -%}
+      <table class="totals">
+        <tr><td>Taxable Value</td><td class="rt">{{ c.fmt(c.net_total) }}</td></tr>
+        {%- if F.other_charges and not c.band -%}{%- for o in c.other_charges -%}
+        <tr><td>{{ o.description }}</td><td class="rt">{{ c.fmt(o.amount) }}</td></tr>
+        {%- endfor -%}{%- elif c.band and c.other_total -%}
+        <tr><td>Freight / Charges (see above)</td><td class="rt">{{ c.fmt(c.other_total) }}</td></tr>{%- endif -%}
+        {%- if c.disc_total -%}<tr><td>Additional Discount</td><td class="rt">– {{ c.fmt(c.disc_total) }}</td></tr>{%- endif -%}
+        {%- if c.tax.show -%}
+          {%- for t in (c.tax.cols if c.tax.cols else ["cgst","sgst","igst"]) -%}
+            {%- if c.tax_totals[t] or c.tax.cols -%}<tr><td>{{ tax_labels[t] }}</td><td class="rt">{{ c.fmt(c.tax_totals[t]) }}</td></tr>{%- endif -%}
+          {%- endfor -%}
+          {%- if c.tax_totals.cess -%}<tr><td>Cess</td><td class="rt">{{ c.fmt(c.tax_totals.cess) }}</td></tr>{%- endif -%}
+        {%- else -%}
+          <tr><td>Taxes &amp; Charges</td><td class="rt">{{ c.fmt(c.taxes_total) }}</td></tr>
+        {%- endif -%}
+        {%- if F.round_off and c.round_off -%}<tr><td>Round Off</td><td class="rt">{{ c.fmt(c.round_off) }}</td></tr>{%- endif -%}
+        <tr class="gt"><td>{{ "Challan Total" if c.kind == "dn" else "Invoice Total" }} [{{ c.currency }}]</td><td class="rt">{{ c.fmt(c.rounded) }}</td></tr>
+        {%- if c.balance -%}
+        <tr><td class="mut">Previous Balance</td><td class="rt">{{ c.drcr(c.balance.previous) }}</td></tr>
+        <tr class="bal"><td>Current Balance</td><td class="rt">{{ c.drcr(c.balance.current) }}</td></tr>
+        {%- endif -%}
+        {%- if doc.get("advance_paid") -%}<tr><td>Advance Paid</td><td class="rt">{{ c.fmt(doc.advance_paid) }}</td></tr>{%- endif -%}
+      </table>
+      {%- else -%}
+      <div class="card ct mut sm" style="padding-top:18px;">Quantity-only challan — values not disclosed.</div>
+      {%- endif -%}
+    </td>
+  </tr>
+</table>
+
+{#- ================= HSN SUMMARY (invoice) ================= -#}
+{%- if c.kind == "si" and F.hsn_summary and show_amt and c.hsn_rows -%}
+<table class="hsn">
+  <thead>
+    <tr>
+      <th style="text-align:left;">HSN / SAC</th><th>Qty</th><th>Taxable Value</th>
+      {%- for t in (c.tax.cols if c.tax.cols else ["cgst","sgst","igst"]) -%}<th>{{ tax_labels[t] }} %</th><th>{{ tax_labels[t] }} Amt</th>{%- endfor -%}
+      <th>Total Tax</th><th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for h in c.hsn_rows -%}
+    <tr>
+      <td>{{ h.hsn }}</td><td>{{ c.fmt_qty(h.qty) }}</td><td>{{ c.fmt(h.taxable) }}</td>
+      {%- for t in (c.tax.cols if c.tax.cols else ["cgst","sgst","igst"]) -%}<td>{{ c.fmt_qty(h[t ~ "_rate"]) }}</td><td>{{ c.fmt(h[t]) }}</td>{%- endfor -%}
+      <td>{{ c.fmt(h.cgst + h.sgst + h.igst) }}</td><td class="b">{{ c.fmt(h.total) }}</td>
+    </tr>
+    {%- endfor -%}
+    <tr class="t">
+      <td>Total</td><td>{{ c.fmt_qty(c.hsn_tot.qty) }}</td><td>{{ c.fmt(c.hsn_tot.taxable) }}</td>
+      {%- for t in (c.tax.cols if c.tax.cols else ["cgst","sgst","igst"]) -%}<td></td><td>{{ c.fmt(c.hsn_tot[t]) }}</td>{%- endfor -%}
+      <td>{{ c.fmt(c.hsn_tot.tax) }}</td><td>{{ c.fmt(c.hsn_tot.total) }}</td>
+    </tr>
+  </tbody>
+</table>
+{%- endif -%}
+
+{#- ================= SIGNATURES ================= -#}
+<table class="sig">
+  <tr>
+    {%- if F.receiver_sig -%}
+    <td style="width:34%;">
+      <span class="who">Acceptance / Receiver's Signature</span>
+      <div class="line">Name, Seal &amp; Date — goods received in good condition</div>
+    </td>
+    {%- endif -%}
+    <td style="width:{% if F.receiver_sig %}32%{% else %}60%{% endif %};" class="sm mut">
+      {%- if c.jurisdiction -%}<div>{{ c.jurisdiction }}</div>{%- endif -%}
+      {%- if doc.get("is_reverse_charge") is not none -%}<div>Tax payable on reverse charge basis : <b>{{ "Yes" if doc.get("is_reverse_charge") else "No" }}</b></div>{%- endif -%}
+      <div class="xs">This is a computer generated document{% if c.einvoice and c.einvoice.irn %} with e-Invoice IRN{% endif %}.</div>
+    </td>
+    <td style="width:34%;" class="rt">
+      <span class="who">{{ c.signatory }}</span>
+      <div class="line" style="margin-left:40%;">Authorised Signatory</div>
+    </td>
+  </tr>
+</table>
+{%- if c.footer_contact -%}<div class="foot">{{ c.footer_contact }}</div>{%- else -%}<div class="foot">{{ c.company.name }}</div>{%- endif -%}
+
+</div>

@@ -1,0 +1,288 @@
+{#- Neotec OrderFlow — Quotation Stock Availability print format.
+    Managed by code (setup/install.py) — edit in the app repo, not in
+    the Print Format record. Behavior driven by Neotec OrderFlow
+    Settings: print_availability_mode (Ticks/Quantities/Off) and
+    enable_partial_state. Warehouse columns come from
+    Warehouse.custom_whprefix. Landscape A4. -#}
+{%- set nof = frappe.get_doc("Neotec OrderFlow Settings") -%}
+{%- set show_mode = nof.print_availability_mode or "Ticks" -%}
+{%- set show_stock = nof.enabled and show_mode != "Off" -%}
+
+{%- set warehouse_columns = [] -%}
+{%- if show_stock -%}
+    {%- set warehouse_columns = frappe.get_all("Warehouse",
+        filters={"custom_whprefix": ["is", "set"], "disabled": 0, "is_group": 0},
+        fields=["name", "custom_whprefix", "custom_state"],
+        order_by="custom_whprefix asc") -%}
+{%- endif -%}
+
+{#- segregate the warehouse columns state-wise: named states A-Z, blank last -#}
+{%- set state_map = {} -%}
+{%- for wc in warehouse_columns -%}
+    {%- set st = (wc.custom_state or "") | trim -%}
+    {%- if st not in state_map -%}{%- set _ = state_map.update({st: []}) -%}{%- endif -%}
+    {%- set _ = state_map[st].append(wc) -%}
+{%- endfor -%}
+{%- set state_groups = [] -%}
+{%- for st in state_map.keys() | reject("equalto", "") | sort -%}
+    {%- set _ = state_groups.append({"state": st, "whs": state_map[st]}) -%}
+{%- endfor -%}
+{%- if state_map.get("") -%}
+    {%- set _ = state_groups.append({"state": "Others", "whs": state_map[""]}) -%}
+{%- endif -%}
+{#- show the state header row unless everything is unclassified -#}
+{%- set show_state_row = state_groups | length > 1
+        or (state_groups and state_groups[0].state != "Others") -%}
+
+{%- set addr = None -%}
+{%- set addr_links = frappe.get_all("Dynamic Link",
+        filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"},
+        fields=["parent"]) -%}
+{%- for l in addr_links -%}
+    {%- set a = frappe.db.get_value("Address", l.parent,
+        ["address_line1", "address_line2", "city", "state", "pincode", "is_your_company_address"],
+        as_dict=True) -%}
+    {%- if a and (not addr or a.is_your_company_address) -%}
+        {%- set addr = a -%}
+    {%- endif -%}
+{%- endfor -%}
+
+{%- set item_codes = doc.items | map(attribute="item_code") | select | list -%}
+{%- set stock_map = {} -%}
+{%- if show_stock and item_codes -%}
+    {%- set bins = frappe.get_all("Bin",
+        filters={"item_code": ["in", item_codes]},
+        fields=["item_code", "warehouse", "actual_qty", "reserved_qty", "reserved_stock"]) -%}
+    {%- for b in bins -%}
+        {%- set avail = (b.actual_qty or 0)
+            - ((b.reserved_qty or 0) if nof.deduct_reserved_qty else 0)
+            - ((b.reserved_stock or 0) if nof.deduct_reserved_stock else 0) -%}
+        {%- if avail > 0 -%}
+            {%- set wkey = b.item_code ~ "|" ~ b.warehouse -%}
+            {%- set _ = stock_map.update({wkey: (stock_map.get(wkey, 0) + avail)}) -%}
+            {%- set tkey = b.item_code ~ "|__total" -%}
+            {%- set _ = stock_map.update({tkey: (stock_map.get(tkey, 0) + avail)}) -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+
+<style>
+    .print-format {
+        orientation: landscape;
+        page-size: A4;
+        margin-top: 6mm; margin-bottom: 6mm;
+        margin-left: 6mm; margin-right: 6mm;
+    }
+    @page { size: A4 landscape; margin: 6mm; }
+    .qtn-wrap { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; }
+    .qtn-wrap table { border-collapse: collapse; width: 100%; }
+    .bx { border: 1px solid #000; }
+    .bx td, .bx th { border: 1px solid #000; padding: 3px 4px; vertical-align: top; }
+    .title { font-size: 15px; font-weight: bold; text-align: right; }
+    .co-name { font-size: 13px; font-weight: bold; }
+    .muted { color: #333; }
+    .rt { text-align: right; }
+    .ct { text-align: center; }
+    .items th { background: #f2f2f2; font-size: 9.5px; text-align: center; }
+    .items td { font-size: 9.5px; }
+    .tick { color: #1a7f37; font-weight: bold; font-size: 10px; }
+    .dash { color: #999; }
+    .st-head { font-size: 8px; letter-spacing: 0.2px; background: #e9edf1 !important; }
+    .st-sep { border-left: 2px solid #000 !important; }
+    .av-yes     { background: #e8f5e9; color: #1a7f37; font-weight: bold; text-align: center; }
+    .av-partial { background: #fff8e1; color: #a06a00; font-weight: bold; text-align: center; }
+    .av-no      { background: #fdecea; color: #b02a37; font-weight: bold; text-align: center; }
+    .terms { font-size: 8px; }
+</style>
+
+<div class="qtn-wrap">
+
+    <table class="bx" style="margin-bottom:0;">
+        <tr>
+            <td style="width:55%; border-right:none;">
+                <span class="co-name">{{ doc.company }}</span><br>
+                {%- if addr -%}
+                    {{ addr.address_line1 or "" }}{% if addr.address_line2 %}, {{ addr.address_line2 }}{% endif %},<br>
+                    {{ addr.city or "" }}, {{ addr.state or "" }} - {{ addr.pincode or "" }}<br>
+                {%- endif -%}
+                {%- if doc.get("company_gstin") -%}GSTIN No: <b>{{ doc.company_gstin }}</b>
+                {%- elif doc.get("company_tax_id") -%}VAT No: <b>{{ doc.company_tax_id }}</b>{%- endif -%}
+            </td>
+            <td style="width:45%; border-left:none;">
+                <div class="title">SALES QUOTATION</div>
+                <table class="bx" style="margin-top:6px;">
+                    <tr>
+                        <th class="ct">Quotation No</th>
+                        <th class="ct">Quotation Date</th>
+                        <th class="ct">Area Name</th>
+                        <th class="ct">Customer Ref No</th>
+                    </tr>
+                    <tr>
+                        <td class="ct">{{ doc.name }}</td>
+                        <td class="ct">{{ frappe.utils.formatdate(doc.transaction_date, "dd/MM/yyyy") }}</td>
+                        <td class="ct">{{ doc.get("territory") or "" }}</td>
+                        <td class="ct">{{ doc.get("po_no") or "" }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="bx" style="border-top:none;">
+        <tr>
+            <td style="width:50%;">
+                <b>Customer Name :</b> {{ doc.customer_name }}<br><br>
+                <b>Bill To :</b><br>
+                {{ doc.address_display or "" }}
+                <br>
+                {%- if doc.get("billing_address_gstin") -%}
+                    GST Registration Number : <b>{{ doc.billing_address_gstin }}</b><br>
+                {%- endif -%}
+                {%- if doc.contact_display -%}Name : {{ doc.contact_display }}<br>{%- endif -%}
+                {%- if doc.contact_mobile -%}Contact Number : {{ doc.contact_mobile }}{%- endif -%}
+            </td>
+            <td style="width:50%;">
+                Valid Till : {{ frappe.utils.formatdate(doc.get("valid_till"), "dd-MMM-yyyy") }}<br>
+                Payment Terms : {{ doc.get("payment_terms_template") or "" }}<br>
+                Created Time : {{ frappe.utils.format_datetime(doc.creation, "HH:mm:ss") }}<br><br>
+                <span class="terms">
+                    This Quotation is valid for immediate acceptance. If not, it is subject to change
+                    by {{ doc.company }} without notice for discount or price revision as applicable.<br>
+                    Discounts are applicable on Unit price and tax is applicable on Assessable value.
+                </span>
+            </td>
+        </tr>
+    </table>
+
+    <table class="bx items" style="border-top:none;">
+        <thead>
+            <tr>
+                <th style="width:3%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Sno</th>
+                <th style="width:20%;" {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Item Code / Product Description</th>
+                <th style="width:6%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Image</th>
+                <th style="width:5%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Quantity</th>
+                <th style="width:4%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>UOM</th>
+                <th style="width:7%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Unit Price</th>
+                <th style="width:5%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Disc %</th>
+                <th style="width:8%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Assable Value</th>
+                <th style="width:5%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Tax Rate %</th>
+                <th style="width:8%;"  {% if show_stock and show_state_row %}rowspan="2"{% endif %}>Line Total</th>
+                {%- if show_stock -%}
+                <th style="width:6%;" {% if show_state_row %}rowspan="2"{% endif %}>Availability</th>
+                {%- if show_state_row -%}
+                    {%- for g in state_groups -%}
+                    <th colspan="{{ g.whs | length }}" class="st-head st-sep">{{ g.state }}</th>
+                    {%- endfor -%}
+                {%- else -%}
+                    {%- for wc in warehouse_columns -%}
+                    <th style="width:4%;">{{ wc.custom_whprefix }}</th>
+                    {%- endfor -%}
+                {%- endif -%}
+                {%- endif -%}
+            </tr>
+            {%- if show_stock and show_state_row -%}
+            <tr>
+                {%- for g in state_groups -%}
+                    {%- for wc in g.whs -%}
+                    <th style="width:4%;" {% if loop.first %}class="st-sep"{% endif %}>{{ wc.custom_whprefix }}</th>
+                    {%- endfor -%}
+                {%- endfor -%}
+            </tr>
+            {%- endif -%}
+        </thead>
+        <tbody>
+            {%- for item in doc.items -%}
+            {%- set total_avail = stock_map.get(item.item_code ~ "|__total", 0) -%}
+            {%- if total_avail >= (item.qty or 0) and total_avail > 0 -%}
+                {%- set av_text, av_class = "YES", "av-yes" -%}
+            {%- elif total_avail > 0 and nof.enable_partial_state -%}
+                {%- set av_text, av_class = "PARTIAL", "av-partial" -%}
+            {%- else -%}
+                {%- set av_text, av_class = "NO", "av-no" -%}
+            {%- endif -%}
+            {%- set tax_rate = (item.get("igst_rate") or 0)
+                    + (item.get("cgst_rate") or 0) + (item.get("sgst_rate") or 0) -%}
+            {%- if not tax_rate and item.item_tax_template -%}
+                {%- set tax_rate = 0 -%}
+            {%- endif -%}
+            {%- set line_total = (item.net_amount or 0) * (1 + tax_rate / 100) -%}
+            <tr>
+                <td class="ct">{{ loop.index }}</td>
+                <td>
+                    <b>{{ item.item_code }}</b><br>
+                    {{ item.item_name if item.item_name != item.item_code else "" }}
+                    {%- if item.description and item.description != item.item_name -%}
+                        <br><span class="muted">{{ item.description | striptags | truncate(80) }}</span>
+                    {%- endif -%}
+                    {%- if item.get("gst_hsn_code") -%}
+                        <br><span class="muted">HSN: {{ item.gst_hsn_code }}</span>
+                    {%- endif -%}
+                </td>
+                <td class="ct">
+                    {%- if item.image -%}
+                        <img src="{{ item.image }}" style="max-width:45px;max-height:45px;">
+                    {%- endif -%}
+                </td>
+                <td class="rt">{{ "%.2f" | format(item.qty or 0) }}</td>
+                <td class="ct">{{ item.uom or item.stock_uom }}</td>
+                <td class="rt">{{ "%.2f" | format(item.price_list_rate or item.rate or 0) }}</td>
+                <td class="rt">{{ "%.2f" | format(item.discount_percentage or 0) }}</td>
+                <td class="rt">{{ "%.2f" | format(item.net_amount or 0) }}</td>
+                <td class="rt">{{ "%.2f" | format(tax_rate) }}</td>
+                <td class="rt">{{ "%.2f" | format(line_total) }}</td>
+                {%- if show_stock -%}
+                <td class="{{ av_class }}">{{ av_text }}</td>
+                {%- for g in state_groups -%}
+                {%- for wc in g.whs -%}
+                {%- set w_avail = stock_map.get(item.item_code ~ "|" ~ wc.name, 0) -%}
+                <td class="ct{% if loop.first and show_state_row %} st-sep{% endif %}">
+                    {%- if show_mode == "Quantities" -%}
+                        {%- if w_avail > 0 -%}{{ "%.0f" | format(w_avail) }}{%- else -%}<span class="dash">&ndash;</span>{%- endif -%}
+                    {%- else -%}
+                        {%- if w_avail > 0 -%}<span class="tick">&#10003;</span>{%- else -%}<span class="dash">&ndash;</span>{%- endif -%}
+                    {%- endif -%}
+                </td>
+                {%- endfor -%}
+                {%- endfor -%}
+                {%- endif -%}
+            </tr>
+            {%- endfor -%}
+        </tbody>
+    </table>
+
+    <table class="bx" style="border-top:none;">
+        <tr>
+            <td style="width:70%;" class="terms">
+                <b>In Words :</b> {{ doc.in_words or "" }}
+            </td>
+            <td style="width:30%;">
+                <table>
+                    <tr><td>Total Assable Value</td><td class="rt"><b>{{ "%.2f" | format(doc.net_total or 0) }}</b></td></tr>
+                    <tr><td>Total Tax</td><td class="rt"><b>{{ "%.2f" | format(doc.total_taxes_and_charges or 0) }}</b></td></tr>
+                    {%- if doc.get("rounding_adjustment") -%}
+                    <tr><td>Rounding</td><td class="rt">{{ "%.2f" | format(doc.rounding_adjustment) }}</td></tr>
+                    {%- endif -%}
+                    <tr><td><b>Grand Total</b></td><td class="rt"><b>{{ "%.2f" | format(doc.rounded_total or doc.grand_total or 0) }}</b></td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    {%- if show_stock -%}
+    <div class="terms" style="margin-top:4px;">
+        Availability: YES = full quantity in stock{% if nof.enable_partial_state %}, PARTIAL = limited stock (contact us){% endif %},
+        NO = currently out of stock.
+        {%- if show_mode == "Quantities" %} Figures show available quantity per branch
+        {%- else %} &#10003; indicates the branch stocks this item{% endif %}
+        {%- if show_state_row -%}
+        , grouped state-wise:
+        {% for g in state_groups %}<b>{{ g.state }}</b> ({{ g.whs | map(attribute="custom_whprefix") | join(", ") }}){% if not loop.last %}; {% endif %}{% endfor %}.
+        {%- else %}
+        ({{ warehouse_columns | map(attribute="custom_whprefix") | join(", ") }}).
+        {%- endif %}
+        Status as of {{ frappe.utils.format_datetime(frappe.utils.now(), "dd-MMM-yyyy HH:mm") }},
+        indicative and subject to prior sale.
+    </div>
+    {%- endif -%}
+
+</div>
