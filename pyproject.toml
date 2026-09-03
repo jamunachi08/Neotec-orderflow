@@ -1,0 +1,15 @@
+[project]
+name = "neotec_orderflow"
+authors = [{ name = "Neotec", email = "support@neotec.ai" }]
+description = "Warehouse-wise fulfilment engine for ERPNext"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0"
+erpnext = ">=15.0.0,<16.0.0"

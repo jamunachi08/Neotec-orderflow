@@ -1,0 +1,573 @@
+{
+ "doctype": "DocType",
+ "name": "Neotec Print Settings",
+ "module": "Neotec OrderFlow",
+ "issingle": 1,
+ "custom": 0,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "branding_&_colours_sec",
+   "fieldtype": "Section Break",
+   "label": "Branding & Colours",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "company_logo",
+   "fieldtype": "Attach Image",
+   "label": "Company Logo (override)",
+   "description": "Leave blank to use the Company record's logo."
+  },
+  {
+   "fieldname": "show_company_logo",
+   "fieldtype": "Check",
+   "label": "Show Company Logo",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_brand_logo",
+   "fieldtype": "Check",
+   "label": "Show Brand Logo",
+   "default": "1",
+   "description": "Shows the Brand image of the items (when all items share one brand)."
+  },
+  {
+   "fieldname": "brand_logo_position",
+   "fieldtype": "Select",
+   "label": "Brand Logo Position",
+   "options": "Right of Company Logo\nTop Right\nHidden",
+   "default": "Right of Company Logo",
+   "depends_on": "show_brand_logo"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_5"
+  },
+  {
+   "fieldname": "accent_color",
+   "fieldtype": "Color",
+   "label": "Accent Colour",
+   "default": "#1F4E79",
+   "description": "Title band, table header, highlights."
+  },
+  {
+   "fieldname": "secondary_color",
+   "fieldtype": "Color",
+   "label": "Secondary Colour",
+   "default": "#E8F0F8",
+   "description": "Light fills for info cards and zebra rows."
+  },
+  {
+   "fieldname": "highlight_color",
+   "fieldtype": "Color",
+   "label": "Highlight Colour",
+   "default": "#FFF3B0",
+   "description": "Invoice total / balance highlight."
+  },
+  {
+   "fieldname": "font_family",
+   "fieldtype": "Select",
+   "label": "Font",
+   "options": "Arial\nHelvetica\nVerdana\nGeorgia\nTahoma",
+   "default": "Arial"
+  },
+  {
+   "fieldname": "base_font_size",
+   "fieldtype": "Int",
+   "label": "Base Font Size (px)",
+   "default": "10"
+  },
+  {
+   "fieldname": "document_titles_sec",
+   "fieldtype": "Section Break",
+   "label": "Document Titles",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "dn_title",
+   "fieldtype": "Data",
+   "label": "Delivery Note Title",
+   "default": "DELIVERY CHALLAN"
+  },
+  {
+   "fieldname": "dn_subtitle",
+   "fieldtype": "Data",
+   "label": "Delivery Note Subtitle",
+   "default": "Goods delivered against order \u2014 not a tax invoice"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_14"
+  },
+  {
+   "fieldname": "si_title",
+   "fieldtype": "Data",
+   "label": "Sales Invoice Title",
+   "default": "TAX INVOICE"
+  },
+  {
+   "fieldname": "si_subtitle",
+   "fieldtype": "Data",
+   "label": "Sales Invoice Subtitle",
+   "default": ""
+  },
+  {
+   "fieldname": "header_blocks_sec",
+   "fieldtype": "Section Break",
+   "label": "Header Blocks",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "show_package_details",
+   "fieldtype": "Check",
+   "label": "Show Package Details (Bag/Box/Carton)",
+   "default": "1",
+   "description": "Reads custom fields custom_bag, custom_box, custom_carton, custom_w_box, custom_other, custom_length, custom_weight_kgs if present; otherwise shows a blank grid to fill by hand."
+  },
+  {
+   "fieldname": "show_package_blank_grid",
+   "fieldtype": "Check",
+   "label": "Show Blank Package Grid When No Data",
+   "default": "0",
+   "depends_on": "show_package_details"
+  },
+  {
+   "fieldname": "show_contact_details",
+   "fieldtype": "Check",
+   "label": "Show Contact Details",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_sales_person",
+   "fieldtype": "Check",
+   "label": "Show Sales Person",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_transport_block",
+   "fieldtype": "Check",
+   "label": "Show Transport / Payment Block",
+   "default": "1"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_23"
+  },
+  {
+   "fieldname": "show_qr",
+   "fieldtype": "Check",
+   "label": "Show Payment QR",
+   "default": "0",
+   "description": "Unchecked per your markup. Enable and upload a UPI QR to show it."
+  },
+  {
+   "fieldname": "qr_image",
+   "fieldtype": "Attach Image",
+   "label": "Payment QR Image",
+   "depends_on": "show_qr"
+  },
+  {
+   "fieldname": "qr_caption",
+   "fieldtype": "Data",
+   "label": "QR Caption",
+   "default": "Scan & Pay",
+   "depends_on": "show_qr"
+  },
+  {
+   "fieldname": "show_einvoice_block",
+   "fieldtype": "Check",
+   "label": "Show e-Invoice / e-Way Bill Block",
+   "default": "1",
+   "description": "IRN, Ack No, Ack Date, e-Way Bill No (India Compliance fields)."
+  },
+  {
+   "fieldname": "show_einvoice_qr",
+   "fieldtype": "Check",
+   "label": "Show e-Invoice Signed QR",
+   "default": "1",
+   "depends_on": "show_einvoice_block"
+  },
+  {
+   "fieldname": "item_table_columns_sec",
+   "fieldtype": "Section Break",
+   "label": "Item Table Columns",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "show_hsn",
+   "fieldtype": "Check",
+   "label": "Show HSN / SAC",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_item_image",
+   "fieldtype": "Check",
+   "label": "Show Item Image",
+   "default": "0"
+  },
+  {
+   "fieldname": "show_item_description",
+   "fieldtype": "Check",
+   "label": "Show Item Description",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_uom",
+   "fieldtype": "Check",
+   "label": "Show UOM",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_unit_price",
+   "fieldtype": "Check",
+   "label": "Show Unit Price",
+   "default": "1"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_35"
+  },
+  {
+   "fieldname": "show_discount_columns",
+   "fieldtype": "Check",
+   "label": "Show Discount Columns",
+   "default": "0",
+   "description": "Total-before-discount, Disc % and Discount Amt \u2014 removed per your markup."
+  },
+  {
+   "fieldname": "tax_display",
+   "fieldtype": "Select",
+   "label": "Tax Column Display",
+   "options": "Auto \u2014 only applicable tax (IGST or CGST+SGST)\nAll \u2014 CGST, SGST & IGST\nRates only\nHidden",
+   "default": "Auto \u2014 only applicable tax (IGST or CGST+SGST)"
+  },
+  {
+   "fieldname": "show_line_total",
+   "fieldtype": "Check",
+   "label": "Show Line Total",
+   "default": "1"
+  },
+  {
+   "fieldname": "dn_show_amounts",
+   "fieldtype": "Check",
+   "label": "Delivery Note: Show Rates & Amounts",
+   "default": "1",
+   "description": "Uncheck for a quantity-only challan."
+  },
+  {
+   "fieldname": "min_item_rows",
+   "fieldtype": "Int",
+   "label": "Minimum Item Rows (pad table)",
+   "default": "6",
+   "description": "Pads the item table with blank rows so the layout stays stable for short documents."
+  },
+  {
+   "fieldname": "totals_&_footer_sec",
+   "fieldtype": "Section Break",
+   "label": "Totals & Footer",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "show_round_off",
+   "fieldtype": "Check",
+   "label": "Show Round Off",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_amount_in_words",
+   "fieldtype": "Check",
+   "label": "Show Amount in Words",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_customer_balance",
+   "fieldtype": "Check",
+   "label": "Show Previous / Current Balance (Invoice)",
+   "default": "1",
+   "description": "Highlighted per your markup; uses the customer ledger balance as on the invoice date."
+  },
+  {
+   "fieldname": "show_hsn_summary",
+   "fieldtype": "Check",
+   "label": "Show HSN Summary Table (Invoice)",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_other_charges",
+   "fieldtype": "Check",
+   "label": "Show Freight / P&F / Insurance lines",
+   "default": "1"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_47"
+  },
+  {
+   "fieldname": "show_bank_details",
+   "fieldtype": "Check",
+   "label": "Show Bank Details",
+   "default": "1"
+  },
+  {
+   "fieldname": "bank_details",
+   "fieldtype": "Small Text",
+   "label": "Bank Details",
+   "depends_on": "show_bank_details",
+   "description": "One line each, e.g. Bank Name : AXIS BANK"
+  },
+  {
+   "fieldname": "show_terms",
+   "fieldtype": "Check",
+   "label": "Show Terms & Conditions",
+   "default": "1"
+  },
+  {
+   "fieldname": "terms_source",
+   "fieldtype": "Select",
+   "label": "Terms Source",
+   "options": "Settings text\nDocument terms\nDocument terms, else settings",
+   "default": "Document terms, else settings",
+   "depends_on": "show_terms"
+  },
+  {
+   "fieldname": "dn_terms",
+   "fieldtype": "Small Text",
+   "label": "Delivery Note Terms",
+   "depends_on": "show_terms"
+  },
+  {
+   "fieldname": "si_terms",
+   "fieldtype": "Small Text",
+   "label": "Sales Invoice Terms",
+   "depends_on": "show_terms"
+  },
+  {
+   "fieldname": "classic_sec",
+   "fieldtype": "Section Break",
+   "label": "Classic Variants (charges band below items)",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "classic_show_charges_band",
+   "fieldtype": "Check",
+   "label": "Show Charges Band under Item Table",
+   "default": "1",
+   "description": "Total Before Freight, then Freight / Insurance / Packing & Forwarding rows with their own tax columns, then Round Off \u2014 exactly as in the legacy layout."
+  },
+  {
+   "fieldname": "classic_charge_rows",
+   "fieldtype": "Small Text",
+   "label": "Always-Show Charge Rows (label|SAC)",
+   "description": "One per line. These rows print even at 0.00. Matched case-insensitively against the description / account head of non-GST rows in the taxes table.",
+   "default": "Freight|996511\nInsurance|997139\nPacking and Forwarding Expenses|996713"
+  },
+  {
+   "fieldname": "classic_show_total_before_freight",
+   "fieldtype": "Check",
+   "label": "Show 'Total Before Freight' Row",
+   "default": "1"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_classic"
+  },
+  {
+   "fieldname": "classic_si_tax_display",
+   "fieldtype": "Select",
+   "label": "Classic Invoice: Tax Columns",
+   "options": "All \u2014 CGST, SGST & IGST\nAuto \u2014 only applicable tax (IGST or CGST+SGST)\nRates only\nHidden",
+   "default": "All \u2014 CGST, SGST & IGST"
+  },
+  {
+   "fieldname": "classic_dn_tax_display",
+   "fieldtype": "Select",
+   "label": "Classic Delivery Note: Tax Columns",
+   "options": "Rates only\nAll \u2014 CGST, SGST & IGST\nAuto \u2014 only applicable tax (IGST or CGST+SGST)\nHidden",
+   "default": "Rates only",
+   "description": "Per your markup: rate columns ticked, amount columns crossed."
+  },
+  {
+   "fieldname": "classic_show_brand_logo",
+   "fieldtype": "Check",
+   "label": "Classic: Show Brand Logo",
+   "default": "1"
+  },
+  {
+   "fieldname": "classic_show_company_logo",
+   "fieldtype": "Check",
+   "label": "Classic: Show Company Logo",
+   "default": "0",
+   "description": "Crossed out in your markup; company name & address still print."
+  },
+  {
+   "fieldname": "classic_set_as_default",
+   "fieldtype": "Check",
+   "label": "Set CLASSIC formats as default for Delivery Note & Sales Invoice",
+   "default": "0"
+  },
+  {
+   "fieldname": "signature_&_notes_sec",
+   "fieldtype": "Section Break",
+   "label": "Signature & Notes",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "show_package_inspection",
+   "fieldtype": "Check",
+   "label": "Show Package Inspection Instructions",
+   "default": "1"
+  },
+  {
+   "fieldname": "package_inspection_text",
+   "fieldtype": "Small Text",
+   "label": "Package Inspection Text",
+   "depends_on": "show_package_inspection"
+  },
+  {
+   "fieldname": "payment_terms_note",
+   "fieldtype": "Small Text",
+   "label": "Payment Terms Note (strip)"
+  },
+  {
+   "fieldname": "discount_note",
+   "fieldtype": "Data",
+   "label": "Discount Note",
+   "default": "Discounts are applicable on Unit price and GST is applicable on Assessable value."
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "cb_59"
+  },
+  {
+   "fieldname": "signatory_text",
+   "fieldtype": "Data",
+   "label": "Authorised Signatory Line",
+   "default": "For {company}"
+  },
+  {
+   "fieldname": "show_receiver_signature",
+   "fieldtype": "Check",
+   "label": "Show Acceptance / Receiver Signature",
+   "default": "1"
+  },
+  {
+   "fieldname": "jurisdiction_text",
+   "fieldtype": "Data",
+   "label": "Jurisdiction Line",
+   "default": "Subject to Hyderabad Jurisdiction"
+  },
+  {
+   "fieldname": "footer_contact",
+   "fieldtype": "Data",
+   "label": "Footer Contact Line",
+   "description": "e.g. Ph No : 040 35417053  |  Email : info@company.com. Blank = auto from Company phone/email."
+  },
+  {
+   "fieldname": "set_as_default",
+   "fieldtype": "Check",
+   "label": "Set Neotec formats as default for Delivery Note & Sales Invoice",
+   "default": "0"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager"
+  }
+ ],
+ "field_order": [
+  "branding_&_colours_sec",
+  "company_logo",
+  "show_company_logo",
+  "show_brand_logo",
+  "brand_logo_position",
+  "cb_5",
+  "accent_color",
+  "secondary_color",
+  "highlight_color",
+  "font_family",
+  "base_font_size",
+  "document_titles_sec",
+  "dn_title",
+  "dn_subtitle",
+  "cb_14",
+  "si_title",
+  "si_subtitle",
+  "header_blocks_sec",
+  "show_package_details",
+  "show_package_blank_grid",
+  "show_contact_details",
+  "show_sales_person",
+  "show_transport_block",
+  "cb_23",
+  "show_qr",
+  "qr_image",
+  "qr_caption",
+  "show_einvoice_block",
+  "show_einvoice_qr",
+  "item_table_columns_sec",
+  "show_hsn",
+  "show_item_image",
+  "show_item_description",
+  "show_uom",
+  "show_unit_price",
+  "cb_35",
+  "show_discount_columns",
+  "tax_display",
+  "show_line_total",
+  "dn_show_amounts",
+  "min_item_rows",
+  "totals_&_footer_sec",
+  "show_round_off",
+  "show_amount_in_words",
+  "show_customer_balance",
+  "show_hsn_summary",
+  "show_other_charges",
+  "cb_47",
+  "show_bank_details",
+  "bank_details",
+  "show_terms",
+  "terms_source",
+  "dn_terms",
+  "si_terms",
+  "classic_sec",
+  "classic_show_charges_band",
+  "classic_charge_rows",
+  "classic_show_total_before_freight",
+  "cb_classic",
+  "classic_si_tax_display",
+  "classic_dn_tax_display",
+  "classic_show_brand_logo",
+  "classic_show_company_logo",
+  "classic_set_as_default",
+  "signature_&_notes_sec",
+  "show_package_inspection",
+  "package_inspection_text",
+  "payment_terms_note",
+  "discount_note",
+  "cb_59",
+  "signatory_text",
+  "show_receiver_signature",
+  "jurisdiction_text",
+  "footer_contact",
+  "set_as_default"
+ ]
+}
